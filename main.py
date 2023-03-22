@@ -63,4 +63,12 @@ async def players(ctx):
         else:
             await ctx.send("На сервере нет игроков.")
 
+@bot.command()
+async def filters(ctx):
+    if not KEYWORDS:
+        await ctx.send("Фильтр пустой.")
+        return
+    message = "\n".join(f"{i}. {keyword}" for i, keyword in enumerate(KEYWORDS))
+    await ctx.send("```Список игроков в фильтре:\n" + message + "```")
+
 bot.run(BOT_TOKEN)
