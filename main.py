@@ -51,8 +51,8 @@ async def on_ready():
     print(f"Logged bot in as {bot.user.name} ({bot.user.id})")
     bot.loop.create_task(update_server_info())
 
-@bot.command()
-async def players(ctx):
+@bot.command(name="players", aliases=["p"])
+async def show_players(ctx):
     with valve.source.a2s.ServerQuerier(SERVER_ADDRESS) as server:
         players = []
         for player in server.players()["players"]:
@@ -63,8 +63,8 @@ async def players(ctx):
         else:
             await ctx.send("На сервере нет игроков.")
 
-@bot.command()
-async def filters(ctx):
+@bot.command(name="filters", aliases=["f"])
+async def show_filters(ctx):
     if not KEYWORDS:
         await ctx.send("Фильтр пустой.")
         return
