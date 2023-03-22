@@ -1,6 +1,6 @@
 # csgo_monitoring_to_discord
 Monitoring cs go server using Discord bot to find certain players on the server
 
-!players - show all players on servers
+!players !p - show all players on servers
 
-!filters - nicknames filtered players
+!filters !f - nicknames filtered players
