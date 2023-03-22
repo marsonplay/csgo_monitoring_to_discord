@@ -6,9 +6,36 @@ import asyncio
 BOT_TOKEN = ""  # токен бота
 SERVER_ADDRESS = ("1.2.3.4", 12345)
 CHANNEL_ID = 1234567890  # ID вашего текстового канала
-TIME = 300  # 300 = 5 минут задержка между опросами
-ROLE_ID = 1234567890 # ID роли для упоминания
-KEYWORDS = ['1', '2', '3', '4']  # Глобальная переменная для ключевых слов
+TIME = 300  # 300 = 5 минут
+ROLE_ID = 1234567890  # ID роли для упоминания
+
+# функция для чтения ключевых слов из файла
+def read_keywords():
+    with open('keywords.txt', 'r') as file:
+        KEYWORDS = [line.strip() for line in file]
+    return KEYWORDS
+
+print(read_keywords())
+
+# функция для записи ключевых слов в файл
+def write_keywords(keywords):
+    with open('keywords.txt', 'w') as file:
+        for keyword in keywords:
+            file.write(keyword + '\n')
+
+# функция для добавления ключевого слова
+def add_keyword(keyword):
+    keywords = read_keywords()
+    if keyword not in keywords:
+        keywords.append(keyword)
+        write_keywords(keywords)
+
+# функция для удаления ключевого слова
+def remove_keyword(keyword):
+    keywords = read_keywords()
+    if keyword in keywords:
+        keywords.remove(keyword)
+        write_keywords(keywords)
 
 intents = discord.Intents.all()
 intents.members = True
@@ -31,7 +58,7 @@ async def update_server_info():
             message += "\nPlayers:\n" + "\n".join(players) if players else "Нет игроков в сети."
             filtered_players = []
             for player in players:
-                for keyword in KEYWORDS:
+                for keyword in read_keywords():
                     if keyword.lower() in player.lower():
                         filtered_players.append(player)
                         break
@@ -65,10 +92,20 @@ async def show_players(ctx):
 
 @bot.command(name="filters", aliases=["f"])
 async def show_filters(ctx):
-    if not KEYWORDS:
+    if not read_keywords():
         await ctx.send("Фильтр пустой.")
         return
-    message = "\n".join(f"{i}. {keyword}" for i, keyword in enumerate(KEYWORDS))
+    message = "\n".join(f"{i}. {keyword}" for i, keyword in enumerate(read_keywords()))
     await ctx.send("```Список игроков в фильтре:\n" + message + "```")
+
+@bot.command(name='add')
+async def add(ctx, keyword):
+    add_keyword(keyword)
+    await ctx.send(f'Keyword "{keyword}" added.')
+
+@bot.command(name='remove')
+async def remove(ctx, keyword):
+    remove_keyword(keyword)
+    await ctx.send(f'Keyword "{keyword}" removed.')
 
 bot.run(BOT_TOKEN)
