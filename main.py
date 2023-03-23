@@ -4,10 +4,10 @@ import valve.source.a2s
 import asyncio
 
 BOT_TOKEN = ""  # токен бота
-SERVER_ADDRESS = ("46.174.48.248", 27015)
-CHANNEL_ID = 1087816007990661201  # ID вашего текстового канала
+SERVER_ADDRESS = ("1.1.1.1", 27015)
+CHANNEL_ID = 1234567890  # ID вашего текстового канала
 TIME = 30  # 300 = 5 минут
-ROLE_ID = 1087990552143876146  # ID роли для упоминания
+ROLE_ID = 1234567890  # ID роли для упоминания
 
 # функция для чтения ключевых слов из файла
 def read_keywords():
@@ -43,71 +43,73 @@ intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 async def update_server_info():
-    await bot.wait_until_ready()
     channel = bot.get_channel(CHANNEL_ID)
     role = channel.guild.get_role(ROLE_ID)
-    while not bot.is_closed():
-        with valve.source.a2s.ServerQuerier(SERVER_ADDRESS) as server:
-            info = server.info()
-            players = []
-            for player in server.players()["players"]:
-                if player["name"]:
-                    players.append(player)
-            player_count = len(players)
-            server_name = info['server_name']
-            half_length = len(server_name) // 2
-            first_half = server_name[:half_length]
-            map_name = info['map']
-            max_length = 30  # Максимальная длина строки
-            map_name_length = len(map_name)
-            server_name_length = len(first_half)
-            if map_name_length > max_length - server_name_length:
-                map_name = map_name[:max_length - server_name_length - 1] + "..."
-            message = f"{player_count}/{info['max_players']} " + first_half + f" {map_name.rjust(max_length - server_name_length, ' ')}\n"
-            print(message)
-            if players:
-                message += "\nPlayers:\n"
-                for player in sorted(players, key=lambda p: p['score'], reverse=True):
-                    nickname = player["name"].ljust(30)
-                    score = str(player["score"]).rjust(3)
-                    message += f"{nickname} ({score})\n"
+    with valve.source.a2s.ServerQuerier(SERVER_ADDRESS) as server:
+        info = server.info()
+        players = []
+        for player in server.players()["players"]:
+            if player["name"]:
+                players.append(player)
+        player_count = len(players)
+        server_name = info['server_name']
+        half_length = len(server_name) // 2
+        first_half = server_name[:half_length]
+        map_name = info['map']
+        max_length = 30  # Максимальная длина строки
+        map_name_length = len(map_name)
+        server_name_length = len(first_half)
+        if map_name_length > max_length - server_name_length:
+            map_name = map_name[:max_length - server_name_length - 1] + "..."
+        message = f"{player_count}/{info['max_players']} " + first_half + f" {map_name.rjust(max_length - server_name_length, ' ')}\n"
+        print(message)
+        if players:
+            message += "\nPlayers:\n"
+            for player in sorted(players, key=lambda p: p['score'], reverse=True):
+                nickname = player["name"].ljust(30)
+                score = str(player["score"]).rjust(3)
+                message += f"{nickname} ({score})\n"
+        else:
+            message += "Нет игроков в сети."
+        filtered_players = []
+        for player in players:
+            for keyword in read_keywords():
+                if keyword.lower() in player["name"].lower():
+                    filtered_players.append(player["name"])
+                    break
             else:
-                message += "Нет игроков в сети."
-            filtered_players = []
-            for player in players:
-                for keyword in read_keywords():
-                    if keyword.lower() in player["name"].lower():
-                        filtered_players.append(player["name"])
-                        break
-                else:
-                    continue
-                break
-            if not filtered_players:
-                message += "\nИгроки не найдены фильтром."
-            else:
-                message += "Игрок найден:\n" + "\n".join(filtered_players)
-                await channel.send(f"{role.mention}, ОБНАРУЖЕН!: {', '.join(filtered_players)}")
-            await channel.send(f"```{message}```")
-        await asyncio.sleep(TIME)
+                continue
+            break
+        if not filtered_players:
+            message += "\nИгроки не найдены фильтром."
+        else:
+            message += "Игрок найден:\n" + "\n".join(filtered_players)
+            await channel.send(f"{role.mention}, ОБНАРУЖЕН!: {', '.join(filtered_players)}")
+        await channel.send(f"```{message}```")
 
 @bot.event
 async def on_ready():
     print(f"Logged bot in as {bot.user.name} ({bot.user.id})")
-    bot.loop.create_task(update_server_info())
+    bot.loop.create_task(loop_bot())
+
+async def loop_bot():
+    await bot.wait_until_ready()
+    print("Цикл")
+    while not bot.is_closed():
+        await update_server_info()
+        await asyncio.sleep(TIME)
 
 @bot.command(name="players", aliases=["p"])
 async def show_players(ctx):
-    await update_server_info()
-    channel = bot.get_channel(CHANNEL_ID)
-    with valve.source.a2s.ServerQuerier(SERVER_ADDRESS) as server:
-        players = []
-        for player in server.players()["players"]:
-            if player["name"]:
-                players.append(player["name"])
-                if players:
-                    await channel.send("Список игроков на сервере:\n" + "\n".join(players) + "")
-                else:
-                    await channel.send("На сервере нет игроков.")
+    global updating
+    if not updating:
+        await update_server_info()
+        channel = bot.get_channel(CHANNEL_ID)
+        with valve.source.a2s.ServerQuerier(SERVER_ADDRESS) as server:
+            players = []
+            for player in server.players()["players"]:
+                if player["name"]:
+                    players.append(player["name"])
 
 @bot.command(name="filters", aliases=["f"])
 async def show_filters(ctx):
