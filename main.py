@@ -6,7 +6,7 @@ import asyncio
 BOT_TOKEN = ""  # токен бота
 SERVER_ADDRESS = ("1.1.1.1", 27015)
 CHANNEL_ID = 1234567890  # ID вашего текстового канала
-TIME = 30  # 300 = 5 минут
+TIME = 300  # 300 = 5 минут
 ROLE_ID = 1234567890  # ID роли для упоминания
 
 # функция для чтения ключевых слов из файла
@@ -101,15 +101,13 @@ async def loop_bot():
 
 @bot.command(name="players", aliases=["p"])
 async def show_players(ctx):
-    global updating
-    if not updating:
-        await update_server_info()
-        channel = bot.get_channel(CHANNEL_ID)
-        with valve.source.a2s.ServerQuerier(SERVER_ADDRESS) as server:
-            players = []
-            for player in server.players()["players"]:
-                if player["name"]:
-                    players.append(player["name"])
+    await update_server_info()
+    channel = bot.get_channel(CHANNEL_ID)
+    with valve.source.a2s.ServerQuerier(SERVER_ADDRESS) as server:
+        players = []
+        for player in server.players()["players"]:
+            if player["name"]:
+                players.append(player["name"])
 
 @bot.command(name="filters", aliases=["f"])
 async def show_filters(ctx):
