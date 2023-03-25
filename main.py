@@ -4,9 +4,9 @@ import valve.source.a2s
 import asyncio
 
 BOT_TOKEN = ""  # токен бота
-SERVER_ADDRESS = ("1.1.1.1", 27015)
+SERVER_ADDRESS = ("1.2.3.4", 12345)
 CHANNEL_ID = 1234567890  # ID вашего текстового канала
-TIME = 300  # 300 = 5 минут
+TIME = 60  # 60 = 1 минута
 ROLE_ID = 1234567890  # ID роли для упоминания
 
 # функция для чтения ключевых слов из файла
@@ -42,9 +42,15 @@ intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+previous_players_nicks = []
+previous_filtered_players = []
+join_players = []
+leave_players = []
+players_nicks = []
+
 async def update_server_info():
+    global previous_filtered_players
     channel = bot.get_channel(CHANNEL_ID)
-    role = channel.guild.get_role(ROLE_ID)
     with valve.source.a2s.ServerQuerier(SERVER_ADDRESS) as server:
         info = server.info()
         players = []
@@ -63,14 +69,6 @@ async def update_server_info():
             map_name = map_name[:max_length - server_name_length - 1] + "..."
         message = f"{player_count}/{info['max_players']} " + first_half + f" {map_name.rjust(max_length - server_name_length, ' ')}\n"
         print(message)
-        if players:
-            message += "\nPlayers:\n"
-            for player in sorted(players, key=lambda p: p['score'], reverse=True):
-                nickname = player["name"].ljust(30)
-                score = str(player["score"]).rjust(3)
-                message += f"{nickname} ({score})\n"
-        else:
-            message += "Нет игроков в сети."
         filtered_players = []
         for player in players:
             for keyword in read_keywords():
@@ -80,34 +78,81 @@ async def update_server_info():
             else:
                 continue
             break
-        if not filtered_players:
-            message += "\nИгроки не найдены фильтром."
-        else:
-            message += "Игрок найден:\n" + "\n".join(filtered_players)
-            await channel.send(f"{role.mention}, ОБНАРУЖЕН!: {', '.join(filtered_players)}")
-        await channel.send(f"```{message}```")
+        message2 = None
+        if filtered_players:
+            message2 = "Игрок найден:\n" + "\n".join(filtered_players)
+            if filtered_players != previous_filtered_players:
+                #await channel.send(f"<@&{ROLE_ID}> {message2}")
+                previous_filtered_players = set(filtered_players)
+                print("debug1")
+            else:
+                message2 = None
+        return players, filtered_players, message, message2
+
+async def loop_bot():
+    await bot.wait_until_ready()
+    global previous_filtered_players
+    global previous_players_nicks
+    global players_nicks
+    global join_players
+    global leave_players
+    while not bot.is_closed():
+        print("Цикл")
+        players, filtered_players, message, message2 = await update_server_info()
+        #if filtered_players != previous_filtered_players:
+        #    channel = bot.get_channel(CHANNEL_ID)
+        #    role = channel.guild.get_role(ROLE_ID)
+        #    if filtered_players:
+        #        await channel.send(f"{role.mention}, ОБНАРУЖЕН!: {', '.join(filtered_players)}")
+        players_nicks = []
+        for player in valve.source.a2s.ServerQuerier(SERVER_ADDRESS).players()["players"]:
+            if player["name"]:
+                players.append(player)
+                players_nicks.append(player["name"])
+        print("player2: " + str(players_nicks))
+        print("prev_player: " + str(previous_players_nicks))
+        for player in players_nicks:
+            if player not in previous_players_nicks:
+                channel = bot.get_channel(CHANNEL_ID)
+                green_embed = discord.Embed(title='', description=f':white_check_mark: {player} Подключился', color=0x00ff00)
+                await channel.send(embed=green_embed)
+                print(f"{player} Подключился")
+        for player in previous_players_nicks:
+            if player not in players_nicks:
+                channel = bot.get_channel(CHANNEL_ID)
+                red_embed = discord.Embed(title='', description=f':x: {player} Отключился', color=0xff0000)
+                await channel.send(embed=red_embed)
+                print(f"{player} Отключился")
+        if players_nicks != previous_players_nicks:
+            # channel = bot.get_channel(CHANNEL_ID)
+            # await channel.send(f"```{message}```")
+            print("debug2")
+        if message2 != None:
+            await channel.send(f"<@&{ROLE_ID}> {message2}")
+            print("debug3")
+        previous_players_nicks = players_nicks
+        previous_filtered_players = filtered_players
+        await asyncio.sleep(TIME)
+
+@bot.command(name="players", aliases=["p"])
+async def show_players(ctx):
+    players, filtered_players, message, message2= await update_server_info()
+    if filtered_players:
+        await ctx.send(f"Игрок найден: <@&{ROLE_ID}>{', '.join(filtered_players)}")
+    if players:
+        message += "\nPlayers:\n"
+        for player in sorted(players, key=lambda p: p['score'], reverse=True):
+            nickname = player["name"].ljust(30)
+            score = str(player["score"]).rjust(3)
+            message += f"{nickname} ({score})\n"
+    else:
+        message += "Нет игроков в сети."
+    await ctx.send(f"```{message}```")
 
 @bot.event
 async def on_ready():
     print(f"Logged bot in as {bot.user.name} ({bot.user.id})")
     bot.loop.create_task(loop_bot())
-
-async def loop_bot():
-    await bot.wait_until_ready()
-    print("Цикл")
-    while not bot.is_closed():
-        await update_server_info()
-        await asyncio.sleep(TIME)
-
-@bot.command(name="players", aliases=["p"])
-async def show_players(ctx):
-    await update_server_info()
-    channel = bot.get_channel(CHANNEL_ID)
-    with valve.source.a2s.ServerQuerier(SERVER_ADDRESS) as server:
-        players = []
-        for player in server.players()["players"]:
-            if player["name"]:
-                players.append(player["name"])
 
 @bot.command(name="filters", aliases=["f"])
 async def show_filters(ctx):
